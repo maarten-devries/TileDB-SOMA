@@ -312,6 +312,11 @@ class MeasurementWrapper(SOMAGroupWrapper[clib.SOMAMeasurement]):
 
     _GROUP_WRAPPED_TYPE = clib.SOMAMeasurement
 
+class SceneWrapper(SOMAGroupWrapper[clib.SOMACollection]):
+    """Wrapper around a Pybind11 SceneWrapper handle."""
+
+    _GROUP_WRAPPED_TYPE = clib.SOMACollection
+
 
 _ArrType = TypeVar("_ArrType", bound=clib.SOMAArray)
 
