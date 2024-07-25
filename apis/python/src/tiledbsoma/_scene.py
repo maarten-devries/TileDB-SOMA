@@ -26,7 +26,7 @@ class Scene(  # type: ignore[misc]  # __eq__ false positive
         AnySOMAObject,
     ],
 ):
-    """A collection subtype of spatial assets where all assets in one Scene 
+    """A collection subtype of spatial assets where all assets in one Scene
     correspond to the same physical coordinate system.
 
     TODO description

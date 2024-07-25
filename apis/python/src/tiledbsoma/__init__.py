@@ -177,6 +177,7 @@ from ._general_utilities import (
 from ._indexer import IntIndexer, tiledbsoma_build_index
 from ._measurement import Measurement
 from ._sparse_nd_array import SparseNDArray, SparseNDArrayRead
+from ._scene import Scene
 from .options import SOMATileDBContext, TileDBCreateOptions, TileDBWriteOptions
 from .pytiledbsoma import (
     tiledbsoma_stats_disable,
@@ -210,6 +211,7 @@ __all__ = [
     "NotCreateableError",
     "open",
     "ResultOrder",
+    "Scene",
     "show_package_versions",
     "SOMA_JOINID",
     "SOMAError",

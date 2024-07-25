@@ -83,6 +83,7 @@ def open(
         "somacollection": CollectionWrapper,
         "somaexperiment": ExperimentWrapper,
         "somameasurement": MeasurementWrapper,
+        "somascene": SceneWrapper,
     }
 
     try:
@@ -312,10 +313,11 @@ class MeasurementWrapper(SOMAGroupWrapper[clib.SOMAMeasurement]):
 
     _GROUP_WRAPPED_TYPE = clib.SOMAMeasurement
 
-class SceneWrapper(SOMAGroupWrapper[clib.SOMACollection]):
+
+class SceneWrapper(SOMAGroupWrapper[clib.SOMAScene]):
     """Wrapper around a Pybind11 SceneWrapper handle."""
 
-    _GROUP_WRAPPED_TYPE = clib.SOMACollection
+    _GROUP_WRAPPED_TYPE = clib.SOMAScene
 
 
 _ArrType = TypeVar("_ArrType", bound=clib.SOMAArray)
