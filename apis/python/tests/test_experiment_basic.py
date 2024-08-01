@@ -79,6 +79,13 @@ def create_and_populate_sparse_nd_array(uri: str) -> soma.SparseNDArray:
     return _factory.open(uri)
 
 
+def create_and_populate_spatial(uri: str) -> soma.Collection:
+    with soma.Collection.create(uri) as col:
+        for i in range(2):
+            col[f"scene{i}"] = soma.Scene.create(urljoin(uri, f"scene{i}"))
+    return _factory.open(uri)
+
+
 # ----------------------------------------------------------------
 def test_experiment_basic(tmp_path):
     basedir = tmp_path.as_uri()
@@ -94,6 +101,8 @@ def test_experiment_basic(tmp_path):
     assert soma.Measurement.exists(measurement.uri)
     assert not soma.Collection.exists(measurement.uri)
 
+    experiment["spatial"] = create_and_populate_spatial(urljoin(basedir, "spatial"))
+
     measurement["var"] = create_and_populate_var(urljoin(measurement.uri, "var"))
 
     x = measurement.add_new_collection("X")
@@ -102,15 +111,18 @@ def test_experiment_basic(tmp_path):
     x.set("data", nda, use_relative_uri=False)
 
     # ----------------------------------------------------------------
-    assert len(experiment) == 2
+    assert len(experiment) == 3
     assert isinstance(experiment.obs, soma.DataFrame)
     assert isinstance(experiment.ms, soma.Collection)
+    assert isinstance(experiment.spatial, soma.Collection)
     assert "obs" in experiment
     assert "ms" in experiment
+    assert "spatial" in experiment
     assert "nonesuch" not in experiment
 
     assert experiment.obs == experiment["obs"]
     assert experiment.ms == experiment["ms"]
+    assert experiment.spatial == experiment["spatial"]
 
     assert len(experiment.ms) == 1
     assert isinstance(experiment.ms["RNA"], soma.Measurement)
@@ -129,6 +141,12 @@ def test_experiment_basic(tmp_path):
     assert "nonesuch" not in experiment.ms["RNA"].X
     assert isinstance(experiment.ms["RNA"].X["data"], soma.SparseNDArray)
 
+    assert len(experiment.spatial) == 2
+    assert "scene0" in experiment.spatial
+    assert "scene1" in experiment.spatial
+    assert experiment.spatial["scene0"] == experiment["spatial"]["scene0"]
+    assert experiment.spatial["scene1"] == experiment["spatial"]["scene1"]
+
     # >>> experiment.ms.RNA.X.data._tiledb_open().df[:]
     #    __dim_0  __dim_1  data
     # 0        0        2     7
@@ -140,6 +158,7 @@ def test_experiment_basic(tmp_path):
     assert experiment is not None
     assert experiment.obs is not None
     assert experiment.ms is not None
+    assert experiment.spatial is not None
     assert experiment.ms["RNA"] is not None
     assert experiment.ms["RNA"].X is not None
     assert experiment.ms["RNA"].X["data"] is not None
