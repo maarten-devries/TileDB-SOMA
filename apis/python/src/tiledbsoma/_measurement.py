@@ -65,6 +65,8 @@ class Measurement(  # type: ignore[misc]  # __eq__ false positive
         varp (Collection[SparseNDArray]):
             A collection of sparse matrices containing pairwise annotations of each ``var`` row.
             Indexed with ``[varid_1, varid_2]``
+        var_scene (DataFrame):
+            A dataframe to map features to Scene objects.
 
     Lifecycle:
         Maturing.
@@ -80,4 +82,5 @@ class Measurement(  # type: ignore[misc]  # __eq__ false positive
         "obsp": ("SOMACollection",),
         "varm": ("SOMACollection",),
         "varp": ("SOMACollection",),
+        "var_scene": ("SOMADataFrame",),
     }

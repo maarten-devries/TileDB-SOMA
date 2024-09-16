@@ -10,6 +10,7 @@
 #include "soma_measurement.h"
 #include "soma_scene.h"
 #include "soma_sparse_ndarray.h"
+#include "soma_spatial_dataframe.h"
 
 namespace tiledbsoma {
 
@@ -56,6 +57,8 @@ std::unique_ptr<SOMAObject> SOMAObject::open(
             return std::make_unique<SOMASparseNDArray>(*array_);
         } else if (array_type == "somadensendarray") {
             return std::make_unique<SOMADenseNDArray>(*array_);
+        } else if (array_type == "somaspatialdataframe") {
+            return std::make_unique<SOMASpatialDataFrame>(*array_);
         } else {
             throw TileDBSOMAError("Saw invalid SOMAArray type");
         }

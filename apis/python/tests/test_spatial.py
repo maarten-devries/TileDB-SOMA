@@ -92,3 +92,44 @@ def test_scene_basic(tmp_path):
 
     with pytest.raises(soma.DoesNotExistError):
         soma.Scene.open("bad uri")
+
+
+def test_measurement_with_var_scene(tmp_path):
+    baseuri = tmp_path.as_uri()
+    obs_scene_uri = urljoin(baseuri, "obs_scene")
+
+    with soma.Measurement.create(baseuri) as mea:
+        with pytest.raises(TypeError):
+            mea["obs_scene"] = soma.SparseNDArray.create(obs_scene_uri)
+        mea["obs_scene"] = create_and_populate_df(obs_scene_uri)
+
+    assert soma.Measurement.exists(baseuri)
+    assert soma.DataFrame.exists(obs_scene_uri)
+
+
+def test_coordinate_space(tmp_path):
+    baseuri = tmp_path.as_uri()
+
+    soma.Scene.create(baseuri)
+
+    with soma.Scene.open(baseuri) as scene:
+        with pytest.raises(ValueError):
+            # cannot be empty
+            soma.CoordinateSpace([])
+
+        with pytest.raises(ValueError):
+            # must have unique axis names
+            soma.CoordinateSpace([soma.Axis("a"), soma.Axis("a")])
+
+        coords = soma.CoordinateSpace(
+            [
+                soma.Axis("a"),
+                soma.Axis("b", "x"),
+                soma.Axis(name="c", units="y", scale="1.0"),
+            ]
+        )
+
+        scene.coordinate_space = coords
+        assert scene.coordinate_space.rank() == len(scene.coordinate_space) == 3
+        assert scene.coordinate_space == coords
+        assert scene.coordinate_space.axis_names == ("a", "b", "c")

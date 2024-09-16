@@ -58,5 +58,7 @@
 #include "soma/soma_dataframe.h"
 #include "soma/soma_dense_ndarray.h"
 #include "soma/soma_sparse_ndarray.h"
+#include "soma/soma_scene.h"
+#include "soma/soma_spatial_dataframe.h"
 
 #endif

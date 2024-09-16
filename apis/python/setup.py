@@ -310,6 +310,7 @@ setuptools.setup(
                 "src/tiledbsoma/soma_dataframe.cc",
                 "src/tiledbsoma/soma_dense_ndarray.cc",
                 "src/tiledbsoma/soma_sparse_ndarray.cc",
+                "src/tiledbsoma/soma_spatial_dataframe.cc",
                 "src/tiledbsoma/soma_group.cc",
                 "src/tiledbsoma/soma_collection.cc",
                 "src/tiledbsoma/pytiledbsoma.cc",
@@ -342,7 +343,7 @@ setuptools.setup(
         "scanpy>=1.9.2",
         "scipy",
         # Note: the somacore version is in .pre-commit-config.yaml too
-        "somacore==1.0.15",
+        # "somacore==1.0.15",
         "tiledb~=0.32.0",
         "typing-extensions",  # Note "-" even though `import typing_extensions`
     ],

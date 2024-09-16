@@ -177,7 +177,7 @@ from ._general_utilities import (
 from ._indexer import IntIndexer, tiledbsoma_build_index
 from ._measurement import Measurement
 from ._sparse_nd_array import SparseNDArray, SparseNDArrayRead
-from ._scene import Scene
+from ._scene import Axis, CoordinateSpace, Scene
 from .options import SOMATileDBContext, TileDBCreateOptions, TileDBWriteOptions
 from .pytiledbsoma import (
     tiledbsoma_stats_disable,
@@ -194,9 +194,11 @@ __version__ = get_implementation_version()
 
 __all__ = [
     "AlreadyExistsError",
+    "Axis",
     "AxisColumnNames",
     "AxisQuery",
     "Collection",
+    "CoordinateSpace",
     "DataFrame",
     "DenseNDArray",
     "DoesNotExistError",

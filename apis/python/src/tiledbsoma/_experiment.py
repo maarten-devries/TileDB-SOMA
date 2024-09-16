@@ -45,6 +45,8 @@ class Experiment(  # type: ignore[misc]  # __eq__ false positive
             defined in this dataframe.
         ms (Collection):
             A collection of named measurements.
+        spatial (Collection[Scene]):
+            A collection of Scene objects.
 
     Example:
         >>> import tiledbsoma
