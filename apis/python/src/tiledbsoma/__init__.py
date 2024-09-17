@@ -147,7 +147,14 @@ except ImportError:
         # Otherwise try loading by name only.
         ctypes.CDLL(libtiledbsoma_name)
 
-from somacore import AxisColumnNames, AxisQuery, ExperimentAxisQuery
+from somacore import (
+    Axis,
+    CoordinateSpace,
+    CoordinateTransform,
+    AxisColumnNames,
+    AxisQuery,
+    ExperimentAxisQuery,
+)
 from somacore.options import ResultOrder
 
 # TODO: once we no longer support Python 3.7, remove this and pin to pyarrow >= 14.0.1
@@ -177,7 +184,8 @@ from ._general_utilities import (
 from ._indexer import IntIndexer, tiledbsoma_build_index
 from ._measurement import Measurement
 from ._sparse_nd_array import SparseNDArray, SparseNDArrayRead
-from ._scene import Axis, CoordinateSpace, Scene
+from ._spatial_dataframe import PointCloud
+from ._scene import Scene
 from .options import SOMATileDBContext, TileDBCreateOptions, TileDBWriteOptions
 from .pytiledbsoma import (
     tiledbsoma_stats_disable,
@@ -212,6 +220,7 @@ __all__ = [
     "Measurement",
     "NotCreateableError",
     "open",
+    "PointCloud",
     "ResultOrder",
     "Scene",
     "show_package_versions",

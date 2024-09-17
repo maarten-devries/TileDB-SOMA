@@ -90,9 +90,9 @@ void load_soma_object(py::module& m) {
                             dynamic_cast<SOMAMeasurement&>(*soma_obj));
                     else if (soma_obj_type == "somascene")
                         return py::cast(dynamic_cast<SOMAScene&>(*soma_obj));
-                    else if (soma_obj_type == "somaspatialdataframe")
+                    else if (soma_obj_type == "somapointcloud")
                         return py::cast(
-                            dynamic_cast<SOMASpatialDataFrame&>(*soma_obj));
+                            dynamic_cast<SOMAPointCloud&>(*soma_obj));
                     return py::none();
                 } catch (...) {
                     return py::none();

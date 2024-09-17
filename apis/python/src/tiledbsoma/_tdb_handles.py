@@ -44,6 +44,7 @@ RawHandle = Union[
     clib.SOMADataFrame,
     clib.SOMASparseNDArray,
     clib.SOMADenseNDArray,
+    clib.SOMASpatialDataFrame,
     clib.SOMAGroup,
     clib.SOMACollection,
     clib.SOMAMeasurement,
@@ -84,6 +85,7 @@ def open(
         "somaexperiment": ExperimentWrapper,
         "somameasurement": MeasurementWrapper,
         "somascene": SceneWrapper,
+        "somapointcloud": PointCloudWrapper,
     }
 
     try:
@@ -561,6 +563,12 @@ class SparseNDArrayWrapper(SOMAArrayWrapper[clib.SOMASparseNDArray]):
         any dimension. Raises an error if the array already has a shape.
         """
         self._handle.tiledbsoma_upgrade_shape(newshape)
+
+
+class PointCloudWrapper(SOMAArrayWrapper[clib.SOMAPointCloud]):
+    """Wrapper around a Pybind11 PointCloudWrapper handle."""
+
+    _ARRAY_WRAPPED_TYPE = clib.SOMAPointCloud
 
 
 class _DictMod(enum.Enum):

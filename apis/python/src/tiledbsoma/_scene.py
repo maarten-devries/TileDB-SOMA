@@ -16,14 +16,6 @@ from ._soma_object import AnySOMAObject
 from ._sparse_nd_array import SparseNDArray
 
 
-class Axis(coordinates.Axis):
-    pass
-
-
-class CoordinateSpace(coordinates.CoordinateSpace):
-    pass
-
-
 class Scene(  # type: ignore[misc]  # __eq__ false positive
     CollectionBase[AnySOMAObject],
     scene.Scene[  # type: ignore[type-var]
@@ -56,7 +48,7 @@ class Scene(  # type: ignore[misc]  # __eq__ false positive
         Experimental.
     """
 
-    __slots__ = "_coordinate_space"
+    __slots__ = ("_coordinate_space",)
     _wrapper_type = _tdb_handles.SceneWrapper
 
     _subclass_constrained_soma_types = {

@@ -133,3 +133,32 @@ def test_coordinate_space(tmp_path):
         assert scene.coordinate_space.rank() == len(scene.coordinate_space) == 3
         assert scene.coordinate_space == coords
         assert scene.coordinate_space.axis_names == ("a", "b", "c")
+
+def test_point_cloud(tmp_path):
+    baseuri = tmp_path.as_uri()
+
+    asch = pa.schema(
+        [
+            ("x", pa.int32()),
+            ("y", pa.float64()),
+        ]
+    )
+
+    # defaults
+    soma.PointCloud.create(urljoin(baseuri, "default"), schema=asch)
+
+    with soma.PointCloud.open(urljoin(baseuri, "default"), "r") as ptc:
+        assert set(ptc.schema.names) == set(ptc.index_column_names)
+        assert ptc.index_column_names == ("soma_joinid", "x", "y")
+        assert ptc.axis_names == ("x", "y")
+
+    # with passed-in index column names and axis names
+    with pytest.raises(ValueError):
+        # axis names must be in index column names
+        soma.PointCloud.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x")
+
+    soma.PointCloud.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x", axis_names="x")
+
+    with soma.PointCloud.open(urljoin(baseuri, "x"), "r") as ptc:
+        assert ptc.index_column_names == ("x",)
+        assert ptc.axis_names == ("x",)

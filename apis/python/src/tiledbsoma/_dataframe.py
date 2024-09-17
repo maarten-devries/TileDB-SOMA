@@ -24,7 +24,7 @@ from ._query_condition import QueryCondition
 from ._read_iters import TableReadIter
 from ._soma_array import SOMAArray
 from ._tdb_handles import DataFrameWrapper
-from ._types import NPFloating, NPInteger, OpenTimestamp, Slice, is_slice_of
+from ._types import OpenTimestamp, Slice, is_slice_of
 from .options import SOMATileDBContext
 from .options._soma_tiledb_context import _validate_soma_tiledb_context
 from .options._tiledb_create_write_options import (
@@ -216,7 +216,7 @@ class DataFrame(SOMAArray, somacore.DataFrame):
             Maturing.
         """
         context = _validate_soma_tiledb_context(context)
-        schema = _canonicalize_schema(schema, index_column_names)
+        schema = _util.canonicalize_schema(schema, index_column_names)
 
         # SOMA-to-core mappings:
         #
@@ -259,14 +259,14 @@ class DataFrame(SOMAArray, somacore.DataFrame):
                 pa_field.type, is_indexed_column=True
             )
 
-            (slot_core_current_domain, saturated_cd) = _fill_out_slot_soma_domain(
+            (slot_core_current_domain, saturated_cd) = _util.fill_out_slot_soma_domain(
                 slot_soma_domain, index_column_name, pa_field.type, dtype
             )
-            (slot_core_max_domain, saturated_md) = _fill_out_slot_soma_domain(
+            (slot_core_max_domain, saturated_md) = _util.fill_out_slot_soma_domain(
                 None, index_column_name, pa_field.type, dtype
             )
 
-            extent = _find_extent_for_domain(
+            extent = _util.find_extent_for_domain(
                 index_column_name,
                 TileDBCreateOptions.from_platform_config(platform_config),
                 dtype,
@@ -275,10 +275,10 @@ class DataFrame(SOMAArray, somacore.DataFrame):
 
             # Necessary to avoid core array-creation error "Reduce domain max by
             # 1 tile extent to allow for expansion."
-            slot_core_current_domain = _revise_domain_for_extent(
+            slot_core_current_domain = _util.revise_domain_for_extent(
                 slot_core_current_domain, extent, saturated_cd
             )
-            slot_core_max_domain = _revise_domain_for_extent(
+            slot_core_max_domain = _util.revise_domain_for_extent(
                 slot_core_max_domain, extent, saturated_md
             )
 
@@ -703,236 +703,3 @@ class DataFrame(SOMAArray, somacore.DataFrame):
             return True
         except AttributeError:
             return False
-
-
-def _canonicalize_schema(
-    schema: pa.Schema, index_column_names: Sequence[str]
-) -> pa.Schema:
-    """Turns an Arrow schema into the canonical version and checks for errors.
-
-    Returns a schema, which may be modified by the addition of required columns
-    (e.g. ``soma_joinid``).
-    """
-    _util.check_type("schema", schema, (pa.Schema,))
-    if not index_column_names:
-        raise ValueError("DataFrame requires one or more index columns")
-
-    if SOMA_JOINID in schema.names:
-        joinid_type = schema.field(SOMA_JOINID).type
-        if joinid_type != pa.int64():
-            raise ValueError(
-                f"{SOMA_JOINID} field must be of type Arrow int64 but is {joinid_type}"
-            )
-    else:
-        # add SOMA_JOINID
-        schema = schema.append(pa.field(SOMA_JOINID, pa.int64()))
-
-    # verify no illegal use of soma_ prefix
-    for field_name in schema.names:
-        if field_name.startswith("soma_") and field_name != SOMA_JOINID:
-            raise ValueError(
-                f"DataFrame schema may not contain fields with name prefix ``soma_``: got ``{field_name}``"
-            )
-
-    # verify that all index_column_names are present in the schema
-    schema_names_set = set(schema.names)
-    for index_column_name in index_column_names:
-        if index_column_name.startswith("soma_") and index_column_name != SOMA_JOINID:
-            raise ValueError(
-                f'index_column_name other than "soma_joinid" must not begin with "soma_"; got "{index_column_name}"'
-            )
-        if index_column_name not in schema_names_set:
-            schema_names_string = "{}".format(list(schema_names_set))
-            raise ValueError(
-                f"All index names must be defined in the dataframe schema: '{index_column_name}' not in {schema_names_string}"
-            )
-        dtype = schema.field(index_column_name).type
-        if not pa.types.is_dictionary(dtype) and dtype not in [
-            pa.int8(),
-            pa.uint8(),
-            pa.int16(),
-            pa.uint16(),
-            pa.int32(),
-            pa.uint32(),
-            pa.int64(),
-            pa.uint64(),
-            pa.float32(),
-            pa.float64(),
-            pa.binary(),
-            pa.large_binary(),
-            pa.string(),
-            pa.large_string(),
-            pa.timestamp("s"),
-            pa.timestamp("ms"),
-            pa.timestamp("us"),
-            pa.timestamp("ns"),
-        ]:
-            raise TypeError(
-                f"Unsupported index type {schema.field(index_column_name).type}"
-            )
-
-    return schema
-
-
-def _fill_out_slot_soma_domain(
-    slot_domain: AxisDomain,
-    index_column_name: str,
-    pa_type: pa.DataType,
-    dtype: Any,
-) -> Tuple[Tuple[Any, Any], bool]:
-    """Helper function for _build_tiledb_schema. Given a user-specified domain for a
-    dimension slot -- which may be ``None``, or a two-tuple of which either element
-    may be ``None`` -- return either what the user specified (if adequate) or
-    sensible type-inferred values appropriate to the datatype.
-
-    Returns a boolean for whether the underlying datatype's max range was used.
-    """
-    saturated_range = False
-    if slot_domain is not None:
-        # User-specified; go with it when possible
-        if (
-            pa_type == pa.string()
-            or pa_type == pa.large_string()
-            or pa_type == pa.binary()
-            or pa_type == pa.large_binary()
-        ):
-            # TileDB Embedded won't raise an error if the user asks for, say
-            # domain=[("a", "z")].  But it will simply _ignore_ the request and
-            # use [("", "")]. The decision here is to explicitly reject an
-            # unsupported operation.
-            raise ValueError(
-                "TileDB str and bytes index-column types do not support domain specfication"
-            )
-        if index_column_name == SOMA_JOINID:
-            lo = slot_domain[0]
-            hi = slot_domain[1]
-            if lo is not None and lo < 0:
-                raise ValueError(
-                    f"soma_joinid indices cannot be negative; got lower bound {lo}"
-                )
-            if hi is not None and hi < 0:
-                raise ValueError(
-                    f"soma_joinid indices cannot be negative; got upper bound {hi}"
-                )
-        if len(slot_domain) != 2:
-            raise ValueError(
-                f"domain must be a two-tuple; got {len(slot_domain)} elements"
-            )
-        slot_domain = slot_domain[0], slot_domain[1]
-    elif isinstance(dtype, str):
-        slot_domain = "", ""
-    elif np.issubdtype(dtype, NPInteger):
-        iinfo = np.iinfo(cast(NPInteger, dtype))
-        slot_domain = iinfo.min, iinfo.max - 1
-        # Here the slot_domain isn't specified by the user; we're setting it.
-        # The SOMA spec disallows negative soma_joinid.
-        if index_column_name == SOMA_JOINID:
-            slot_domain = (0, 2**31 - 2)  # R-friendly, which 2**63-1 is not
-        else:
-            saturated_range = True
-    elif np.issubdtype(dtype, NPFloating):
-        finfo = np.finfo(cast(NPFloating, dtype))
-        slot_domain = finfo.min, finfo.max
-        saturated_range = True
-
-    # The `iinfo.min+1` is necessary as of tiledb core 2.15 / tiledb-py 0.21.1 since
-    # `iinfo.min` maps to `NaT` (not a time), resulting in
-    #   TypeError: invalid domain extent, domain cannot be safely cast to dtype dtype('<M8[s]')
-    #
-    # The `iinfo.max-delta` is necessary since with iinfo.min being bumped by 1, without subtracting
-    # we would get
-    #   tiledb.cc.TileDBError: [TileDB::Dimension] Error: Tile extent check failed; domain max
-    #   expanded to multiple of tile extent exceeds max value representable by domain type. Reduce
-    #   domain max by 1 tile extent to allow for expansion.
-    elif dtype == "datetime64[s]":
-        iinfo = np.iinfo(cast(NPInteger, np.int64))
-        slot_domain = np.datetime64(iinfo.min + 1, "s"), np.datetime64(
-            iinfo.max - 1000000, "s"
-        )
-    elif dtype == "datetime64[ms]":
-        iinfo = np.iinfo(cast(NPInteger, np.int64))
-        slot_domain = np.datetime64(iinfo.min + 1, "ms"), np.datetime64(
-            iinfo.max - 1000000, "ms"
-        )
-    elif dtype == "datetime64[us]":
-        iinfo = np.iinfo(cast(NPInteger, np.int64))
-        slot_domain = np.datetime64(iinfo.min + 1, "us"), np.datetime64(
-            iinfo.max - 1000000, "us"
-        )
-    elif dtype == "datetime64[ns]":
-        iinfo = np.iinfo(cast(NPInteger, np.int64))
-        slot_domain = np.datetime64(iinfo.min + 1, "ns"), np.datetime64(
-            iinfo.max - 1000000, "ns"
-        )
-
-    else:
-        raise TypeError(f"Unsupported dtype {dtype}")
-
-    return (slot_domain, saturated_range)
-
-
-def _find_extent_for_domain(
-    index_column_name: str,
-    tiledb_create_write_options: TileDBCreateOptions,
-    dtype: Any,
-    slot_domain: Tuple[Any, Any],
-) -> Any:
-    """Helper function for _build_tiledb_schema. Returns a tile extent that is
-    small enough for the index-column type, and that also fits within the
-    user-specified slot domain (if any).
-    """
-
-    # Default 2048 mods to 0 for 8-bit types and 0 is an invalid extent
-    extent = tiledb_create_write_options.dim_tile(index_column_name)
-    if isinstance(dtype, np.dtype) and dtype.itemsize == 1:
-        extent = 1
-
-    if isinstance(dtype, str):
-        return ""
-
-    lo, hi = slot_domain
-    if lo is None or hi is None:
-        return extent
-
-    if np.issubdtype(dtype, NPInteger) or np.issubdtype(dtype, NPFloating):
-        return min(extent, hi - lo + 1)
-
-    if dtype == "datetime64[s]":
-        ilo = int(lo.astype("int64"))
-        ihi = int(hi.astype("int64"))
-        iextent = min(extent, ihi - ilo + 1)
-        return np.datetime64(iextent, "s")
-
-    if dtype == "datetime64[ms]":
-        ilo = int(lo.astype("int64"))
-        ihi = int(hi.astype("int64"))
-        iextent = min(extent, ihi - ilo + 1)
-        return np.datetime64(iextent, "ms")
-
-    if dtype == "datetime64[us]":
-        ilo = int(lo.astype("int64"))
-        ihi = int(hi.astype("int64"))
-        iextent = min(extent, ihi - ilo + 1)
-        return np.datetime64(iextent, "us")
-
-    if dtype == "datetime64[ns]":
-        ilo = int(lo.astype("int64"))
-        ihi = int(hi.astype("int64"))
-        iextent = min(extent, ihi - ilo + 1)
-        return np.datetime64(iextent, "ns")
-
-    return extent
-
-
-# We need to do this to avoid this error at array-creation time:
-#
-# Error: Tile extent check failed; domain max expanded to multiple of tile
-# extent exceeds max value representable by domain type. Reduce domain max
-# by 1 tile extent to allow for expansion.
-def _revise_domain_for_extent(
-    domain: Tuple[Any, Any], extent: Any, saturated_range: bool
-) -> Tuple[Any, Any]:
-    if saturated_range:
-        return (domain[0], domain[1] - extent)
-    else:
-        return domain
