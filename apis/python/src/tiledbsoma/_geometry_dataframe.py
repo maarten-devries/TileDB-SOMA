@@ -20,7 +20,10 @@ from ._soma_array import SOMAArray
 from ._tdb_handles import GeometryDataFrameWrapper
 from ._types import OpenTimestamp
 from .options._soma_tiledb_context import _validate_soma_tiledb_context
-from .options._tiledb_create_write_options import TileDBCreateOptions
+from .options._tiledb_create_write_options import (
+    TileDBCreateOptions,
+    TileDBWriteOptions,
+)
 
 
 class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
@@ -29,7 +32,7 @@ class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
 
     Lifecycle: experimental
     """
-    
+
     _wrapper_type = GeometryDataFrameWrapper
 
     __slots__ = ("_axis_names",)
@@ -212,7 +215,7 @@ class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
         result_order: options.ResultOrderStr = options.ResultOrder.AUTO,
         value_filter: Optional[str] = None,
         platform_config: Optional[options.PlatformConfig] = None,
-    # ) -> data.ReadIter[pa.Table]:
+        # ) -> data.ReadIter[pa.Table]:
     ):
         """Reads a user-defined slice of data into Arrow tables.
 
@@ -249,7 +252,7 @@ class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
         result_order: options.ResultOrderStr = options.ResultOrder.AUTO,
         value_filter: Optional[str] = None,
         platform_config: Optional[options.PlatformConfig] = None,
-    # ) -> "SpatialRead[data.ReadIter[pa.Table]]"
+        # ) -> "SpatialRead[data.ReadIter[pa.Table]]"
     ):
         """Reads a data intersecting an user-defined region into a
         :class:`SpatialRead` with data in Arrow tables.
@@ -306,7 +309,27 @@ class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
 
         Lifecycle: experimental
         """
-        raise NotImplementedError()
+        _util.check_type("values", values, (pa.Table,))
+
+        write_options: Union[TileDBCreateOptions, TileDBWriteOptions]
+        sort_coords = None
+        if isinstance(platform_config, TileDBCreateOptions):
+            raise ValueError(
+                "As of TileDB-SOMA 1.13, the write method takes "
+                "TileDBWriteOptions instead of TileDBCreateOptions"
+            )
+        write_options = TileDBWriteOptions.from_platform_config(platform_config)
+        sort_coords = write_options.sort_coords
+
+        clib_dataframe = self._handle._handle
+
+        for batch in values.to_batches():
+            clib_dataframe.write(batch, sort_coords or False)
+
+        if write_options.consolidate_and_vacuum:
+            clib_dataframe.consolidate_and_vacuum()
+
+        return self
 
     # Metadata operations
 

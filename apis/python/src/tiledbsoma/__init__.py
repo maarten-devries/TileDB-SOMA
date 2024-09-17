@@ -147,7 +147,7 @@ except ImportError:
         # Otherwise try loading by name only.
         ctypes.CDLL(libtiledbsoma_name)
 
-from somacore.coordinates import (
+from somacore import (
     Axis,
     CoordinateSpace,
     CoordinateTransform,

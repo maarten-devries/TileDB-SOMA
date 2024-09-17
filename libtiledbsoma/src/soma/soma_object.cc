@@ -7,11 +7,11 @@
 #include "soma_dataframe.h"
 #include "soma_dense_ndarray.h"
 #include "soma_experiment.h"
+#include "soma_geometry_dataframe.h"
 #include "soma_measurement.h"
 #include "soma_point_cloud.h"
 #include "soma_scene.h"
 #include "soma_sparse_ndarray.h"
-#include "soma_geometry_dataframe.h"
 
 namespace tiledbsoma {
 

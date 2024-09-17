@@ -16,11 +16,16 @@ from somacore import coordinates, options
 from . import _arrow_types, _util
 from . import pytiledbsoma as clib
 from ._exception import SOMAError, map_exception_for_create
+from ._query_condition import QueryCondition
+from ._read_iters import TableReadIter
 from ._soma_array import SOMAArray
 from ._tdb_handles import PointCloudWrapper
 from ._types import OpenTimestamp
 from .options._soma_tiledb_context import _validate_soma_tiledb_context
-from .options._tiledb_create_write_options import TileDBCreateOptions
+from .options._tiledb_create_write_options import (
+    TileDBCreateOptions,
+    TileDBWriteOptions,
+)
 
 
 class PointCloud(SOMAArray, somacore.SpatialDataFrame):
@@ -199,7 +204,34 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
 
         Lifecycle: experimental
         """
-        raise NotImplementedError()
+        del batch_size  # Currently unused.
+        _util.check_unpartitioned(partitions)
+        self._check_open_read()
+
+        handle = self._handle._handle
+
+        context = handle.context()
+        if platform_config is not None:
+            config = context.tiledb_config.copy()
+            config.update(platform_config)
+            context = clib.SOMAContext(config)
+
+        sr = clib.SOMADataFrame.open(
+            uri=handle.uri,
+            mode=clib.OpenMode.read,
+            context=context,
+            column_names=column_names or [],
+            result_order=_util.to_clib_result_order(result_order),
+            timestamp=handle.timestamp and (0, handle.timestamp),
+        )
+
+        if value_filter is not None:
+            sr.set_condition(QueryCondition(value_filter), handle.schema)
+
+        self._set_reader_coords(sr, coords)
+
+        # # TODO: batch_size
+        return TableReadIter(sr)
 
     def read_region(
         self,
@@ -271,8 +303,28 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
 
         Lifecycle: experimental
         """
-        raise NotImplementedError()
-    
+        _util.check_type("values", values, (pa.Table,))
+
+        write_options: Union[TileDBCreateOptions, TileDBWriteOptions]
+        sort_coords = None
+        if isinstance(platform_config, TileDBCreateOptions):
+            raise ValueError(
+                "As of TileDB-SOMA 1.13, the write method takes "
+                "TileDBWriteOptions instead of TileDBCreateOptions"
+            )
+        write_options = TileDBWriteOptions.from_platform_config(platform_config)
+        sort_coords = write_options.sort_coords
+
+        clib_dataframe = self._handle._handle
+
+        for batch in values.to_batches():
+            clib_dataframe.write(batch, sort_coords or False)
+
+        if write_options.consolidate_and_vacuum:
+            clib_dataframe.consolidate_and_vacuum()
+
+        return self
+
     # Metadata operations
 
     @property

@@ -146,12 +146,26 @@ def test_point_cloud(tmp_path):
     )
 
     # defaults
-    soma.PointCloud.create(urljoin(baseuri, "default"), schema=asch)
+    with soma.PointCloud.create(urljoin(baseuri, "default"), schema=asch) as ptc:
+        pydict = {}
+        pydict["soma_joinid"] = [1, 2, 3, 4, 5]
+        pydict["x"] = [10, 20, 30, 40, 50]
+        pydict["y"] = [4.1, 5.2, 6.3, 7.4, 8.5]
+
+        rb = pa.Table.from_pydict(pydict)
+        ptc.write(rb)
 
     with soma.PointCloud.open(urljoin(baseuri, "default"), "r") as ptc:
         assert set(ptc.schema.names) == set(ptc.index_column_names)
         assert ptc.index_column_names == ("soma_joinid", "x", "y")
         assert ptc.axis_names == ("x", "y")
+
+        table = ptc.read().concat()
+        assert table.num_rows == 5
+        assert table.num_columns == 3
+        assert [e.as_py() for e in table["soma_joinid"]] == pydict["soma_joinid"]
+        assert [e.as_py() for e in table["x"]] == pydict["x"]
+        assert [e.as_py() for e in table["y"]] == pydict["y"]
 
     # with user defined values
     soma.PointCloud.create(
