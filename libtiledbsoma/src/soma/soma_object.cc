@@ -11,6 +11,7 @@
 #include "soma_point_cloud.h"
 #include "soma_scene.h"
 #include "soma_sparse_ndarray.h"
+#include "soma_geometry_dataframe.h"
 
 namespace tiledbsoma {
 
@@ -59,6 +60,8 @@ std::unique_ptr<SOMAObject> SOMAObject::open(
             return std::make_unique<SOMADenseNDArray>(*array_);
         } else if (array_type == "somapointcloud") {
             return std::make_unique<SOMAPointCloud>(*array_);
+        } else if (array_type == "somageometrydataframe") {
+            return std::make_unique<SOMAGeometryDataFrame>(*array_);
         } else {
             throw TileDBSOMAError("Saw invalid SOMAArray type");
         }

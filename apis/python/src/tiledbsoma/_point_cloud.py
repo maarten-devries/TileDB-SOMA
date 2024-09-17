@@ -4,24 +4,24 @@
 # Licensed under the MIT License.
 
 """
-Implementation of a SOMA Spatial DataFrame
+Implementation of a SOMA Point Cloud
 """
 
-from typing import Any, Mapping, Optional, Sequence, Tuple, Union, Final, Self
+from typing import Any, Final, Mapping, Optional, Self, Sequence, Tuple, Union
 
 import pyarrow as pa
-
 import somacore
-from somacore import options, coordinates
+from somacore import coordinates, options
 
 from . import _arrow_types, _util
 from . import pytiledbsoma as clib
 from ._exception import SOMAError, map_exception_for_create
 from ._soma_array import SOMAArray
 from ._tdb_handles import PointCloudWrapper
+from ._types import OpenTimestamp
 from .options._soma_tiledb_context import _validate_soma_tiledb_context
 from .options._tiledb_create_write_options import TileDBCreateOptions
-from ._types import OpenTimestamp
+
 
 class PointCloud(SOMAArray, somacore.SpatialDataFrame):
     """A multi-column table with spatial indexing and a user-defined schema.
@@ -46,7 +46,7 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         context: Optional[Any] = None,
         tiledb_timestamp: Optional[OpenTimestamp] = None,
     ):
-    # ) -> Self:
+        # ) -> Self:
         """Creates a new ``PointCloud`` at the given URI.
 
         The schema of the created point cloud  will include a column named
@@ -84,7 +84,9 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         schema = _util.canonicalize_schema(schema, index_column_names)
 
         if not set(axis_names).issubset(index_column_names):
-            raise ValueError(f"Axis names {axis_names} must be defined in index columns ({index_column_names})")
+            raise ValueError(
+                f"Axis names {axis_names} must be defined in index columns ({index_column_names})"
+            )
 
         cls._axis_names = axis_names
 
@@ -140,7 +142,7 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
             index_column_schema.append(pa_field)
 
             index_column_data[pa_field.name] = [*slot_core_current_domain, extent]
-        
+
         index_column_info = pa.RecordBatch.from_pydict(
             index_column_data, schema=pa.schema(index_column_schema)
         )
@@ -175,7 +177,7 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         result_order: options.ResultOrderStr = options.ResultOrder.AUTO,
         value_filter: Optional[str] = None,
         platform_config: Optional[options.PlatformConfig] = None,
-    # ) -> data.ReadIter[pa.Table]:
+        # ) -> data.ReadIter[pa.Table]:
     ):
         """Reads a user-defined slice of data into Arrow tables.
 
@@ -212,7 +214,7 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         result_order: options.ResultOrderStr = options.ResultOrder.AUTO,
         value_filter: Optional[str] = None,
         platform_config: Optional[options.PlatformConfig] = None,
-    # ) -> "SpatialRead[data.ReadIter[pa.Table]]":
+        # ) -> "SpatialRead[data.ReadIter[pa.Table]]":
     ):
         """Reads a data intersecting an user-defined region into a
         :class:`SpatialRead` with data in Arrow tables.
@@ -270,6 +272,8 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         Lifecycle: experimental
         """
         raise NotImplementedError()
+    
+    # Metadata operations
 
     @property
     def schema(self) -> pa.Schema:
@@ -278,7 +282,7 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         Lifecycle: experimental
         """
         return self._handle.schema
-    
+
     @property
     def index_column_names(self) -> Tuple[str, ...]:
         """The names of the index (dimension) columns.
@@ -305,154 +309,3 @@ class PointCloud(SOMAArray, somacore.SpatialDataFrame):
         Lifecycle: experimental
         """
         return tuple(self._domain())
-    
-class GeometryDataFrame(SOMAArray, somacore.GeometryDataFrame):
-    """A multi-column table of geometries with spatial indexing and a user-defined
-    schema.
-
-    Lifecycle: experimental
-    """
-
-    __slots__ = ()
-    soma_type: Final = "SOMAGeometryDataFrame"  # type: ignore[misc]
-
-    # Lifecycle
-
-    @classmethod
-    def create(
-        cls,
-        uri: str,
-        *,
-        schema: pa.Schema,
-        index_column_names: Sequence[str] = (
-            options.SOMA_JOINID,
-            options.SOMA_GEOMETRY,
-        ),
-        axis_names: Sequence[str] = ("x", "y"),
-        domain: Optional[Sequence[Optional[Tuple[Any, Any]]]] = None,
-        platform_config: Optional[options.PlatformConfig] = None,
-        context: Optional[Any] = None,
-        tiledb_timestamp: Optional[OpenTimestamp] = None,
-    ) -> Self:
-        """Creates a new ``GeometryDataFrame`` at the given URI.
-
-        The schema of the created geoemetry dataframe will include a column named
-        ``soma_joinid`` of type ``pyarrow.int64``, with negative values
-        disallowed, and a column named ``soma_geometry of type ``pyarrow.binary`` or
-        ``pyarrow.large_binary``.  If a ``soma_joinid`` column or ``soma_geometry``
-        are present in the provided schema, they must be of the correct type.  If
-        either the ``soma_joinid`` column or ``soma_geometry`` column are not provided,
-        one will be added. The ``soma_joinid`` may be an index column. The
-        ``soma_geometry`` column must be an index column.
-
-        Args:
-            uri: The URI where the dataframe will be created.
-            schema: Arrow schema defining the per-column schema. This schema
-                must define all columns, including columns to be named as index
-                columns.  If the schema includes types unsupported by the SOMA
-                implementation, an error will be raised.
-            index_column_names: A list of column names to use as user-defined
-                index columns (e.g., ``['cell_type', 'tissue_type']``).
-                All named columns must exist in the schema, and at least one
-                index column name is required.
-            axis_names: An ordered list of axis column names that correspond to the
-                names of the axes of the coordinate space the geometries are defined
-                on.
-            domain: An optional sequence of tuples specifying the domain of each
-                index column. Two tuples must be provided for the ``soma_geometry``
-                column which store the width followed by the height. Each tuple should
-                be a pair consisting of the minimum and maximum values storable in the
-                index column. If omitted entirely, or if ``None`` in a given dimension,
-                the corresponding index-column domain will use the minimum and maximum
-                possible values for the column's datatype.  This makes a dataframe
-                growable.
-
-        Returns:
-            The newly created geometry dataframe, opened for writing.
-
-        Lifecycle: experimental
-        """
-        context = _validate_soma_tiledb_context(context)
-        schema = _util.canonicalize_schema(schema, index_column_names)
-
-        if not set(axis_names).issubset(index_column_names):
-            raise ValueError(f"xis names {axis_names} must be defined in index columns ({index_column_names})")
-
-        cls._axis_names = axis_names
-
-        if domain is None:
-            domain = tuple(None for _ in index_column_names)
-        else:
-            ndom = len(domain)
-            nidx = len(index_column_names)
-            if ndom != nidx:
-                raise ValueError(
-                    f"if domain is specified, it must have the same length as index_column_names; got {ndom} != {nidx}"
-                )
-
-        index_column_schema = []
-        index_column_data = {}
-
-        for index_column_name, slot_soma_domain in zip(index_column_names, domain):
-            pa_field = schema.field(index_column_name)
-            dtype = _arrow_types.tiledb_type_from_arrow_type(
-                pa_field.type, is_indexed_column=True
-            )
-
-            (slot_core_current_domain, saturated_cd) = _util.fill_out_slot_soma_domain(
-                slot_soma_domain, index_column_name, pa_field.type, dtype
-            )
-            (slot_core_max_domain, saturated_md) = _util.fill_out_slot_soma_domain(
-                None, index_column_name, pa_field.type, dtype
-            )
-
-            extent = _util.find_extent_for_domain(
-                index_column_name,
-                TileDBCreateOptions.from_platform_config(platform_config),
-                dtype,
-                slot_core_current_domain,
-            )
-
-            # Necessary to avoid core array-creation error "Reduce domain max by
-            # 1 tile extent to allow for expansion."
-            slot_core_current_domain = _util.revise_domain_for_extent(
-                slot_core_current_domain, extent, saturated_cd
-            )
-            slot_core_max_domain = _util.revise_domain_for_extent(
-                slot_core_max_domain, extent, saturated_md
-            )
-
-            # Here is our Arrow data API for communicating schema info between
-            # Python/R and C++ libtiledbsoma:
-            #
-            # [0] core max domain lo
-            # [1] core max domain hi
-            # [2] core extent parameter
-
-            index_column_schema.append(pa_field)
-
-            index_column_data[pa_field.name] = [*slot_core_current_domain, extent]
-        
-        index_column_info = pa.RecordBatch.from_pydict(
-            index_column_data, schema=pa.schema(index_column_schema)
-        )
-
-        plt_cfg = _util.build_clib_platform_config(platform_config)
-        timestamp_ms = context._open_timestamp_ms(tiledb_timestamp)
-        try:
-            clib.SOMAGeometryDataFrame.create(
-                uri,
-                schema=schema,
-                index_column_info=index_column_info,
-                ctx=context.native_context,
-                platform_config=plt_cfg,
-                timestamp=(0, timestamp_ms),
-            )
-        except SOMAError as e:
-            raise map_exception_for_create(e, uri) from None
-
-        handle = cls._wrapper_type.open(uri, "w", context, tiledb_timestamp)
-        return cls(
-            handle,
-            _dont_call_this_use_create_or_open_instead="tiledbsoma-internal-code",
-        )

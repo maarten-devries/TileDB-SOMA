@@ -147,7 +147,7 @@ except ImportError:
         # Otherwise try loading by name only.
         ctypes.CDLL(libtiledbsoma_name)
 
-from somacore import (
+from somacore.coordinates import (
     Axis,
     CoordinateSpace,
     CoordinateTransform,
@@ -184,7 +184,8 @@ from ._general_utilities import (
 from ._indexer import IntIndexer, tiledbsoma_build_index
 from ._measurement import Measurement
 from ._sparse_nd_array import SparseNDArray, SparseNDArrayRead
-from ._spatial_dataframe import PointCloud, GeometryDataFrame
+from ._point_cloud import PointCloud
+from ._geometry_dataframe import GeometryDataFrame
 from ._scene import Scene
 from .options import SOMATileDBContext, TileDBCreateOptions, TileDBWriteOptions
 from .pytiledbsoma import (

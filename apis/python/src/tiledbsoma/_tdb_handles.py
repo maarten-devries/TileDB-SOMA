@@ -571,6 +571,7 @@ class PointCloudWrapper(SOMAArrayWrapper[clib.SOMAPointCloud]):
 
     _ARRAY_WRAPPED_TYPE = clib.SOMAPointCloud
 
+
 class GeometryDataFrameWrapper(SOMAArrayWrapper[clib.SOMAGeometryDataFrame]):
     """Wrapper around a Pybind11 GeometryDataFrameWrapper handle."""
 

@@ -29,7 +29,7 @@ import somacore
 from somacore import options
 
 from . import pytiledbsoma as clib
-from ._constants import SOMA_JOINID, SOMA_GEOMETRY
+from ._constants import SOMA_JOINID
 from ._types import (
     NPFloating,
     NPInteger,
@@ -453,7 +453,9 @@ def _build_filter_list(
 
 
 def canonicalize_schema(
-    schema: pa.Schema, index_column_names: Sequence[str]
+    schema: pa.Schema,
+    index_column_names: Sequence[str],
+    reserved_fields=[options.SOMA_JOINID],
 ) -> pa.Schema:
     """Turns an Arrow schema into the canonical version and checks for errors.
 
@@ -476,7 +478,7 @@ def canonicalize_schema(
 
     # verify no illegal use of soma_ prefix
     for field_name in schema.names:
-        if field_name.startswith("soma_") and field_name != SOMA_JOINID:
+        if field_name.startswith("soma_") and field_name not in reserved_fields:
             raise ValueError(
                 f"DataFrame schema may not contain fields with name prefix ``soma_``: got ``{field_name}``"
             )
@@ -484,9 +486,12 @@ def canonicalize_schema(
     # verify that all index_column_names are present in the schema
     schema_names_set = set(schema.names)
     for index_column_name in index_column_names:
-        if index_column_name.startswith("soma_") and not index_column_name in [SOMA_JOINID, SOMA_GEOMETRY]:
+        if (
+            index_column_name.startswith("soma_")
+            and index_column_name not in reserved_fields
+        ):
             raise ValueError(
-                f'index_column_name other than "soma_joinid" or "soma_geometry" must not begin with "soma_"; got "{index_column_name}"'
+                f'index_column_name other than "soma_joinid" must not begin with "soma_"; got "{index_column_name}"'
             )
         if index_column_name not in schema_names_set:
             schema_names_string = "{}".format(list(schema_names_set))

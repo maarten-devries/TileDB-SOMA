@@ -134,8 +134,9 @@ def test_coordinate_space(tmp_path):
         assert scene.coordinate_space == coords
         assert scene.coordinate_space.axis_names == ("a", "b", "c")
 
+
 def test_point_cloud(tmp_path):
-    baseuri = tmp_path.as_uri()
+    baseuri = urljoin(f"{tmp_path.as_uri()}/", "test_point_cloud")
 
     asch = pa.schema(
         [
@@ -152,42 +153,60 @@ def test_point_cloud(tmp_path):
         assert ptc.index_column_names == ("soma_joinid", "x", "y")
         assert ptc.axis_names == ("x", "y")
 
-    # with passed-in index column names and axis names
-    with pytest.raises(ValueError):
-        # axis names must be in index column names
-        soma.PointCloud.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x")
-
-    soma.PointCloud.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x", axis_names="x")
-
-    with soma.PointCloud.open(urljoin(baseuri, "x"), "r") as ptc:
-        assert ptc.index_column_names == ("x",)
-        assert ptc.axis_names == ("x",)
-
-def test_geometry_dataframe(tmp_path):
-    baseuri = tmp_path.as_uri()
-
-    asch = pa.schema(
-        [
-            ("x", pa.int32()),
-            ("y", pa.float64()),
-        ]
+    # with user defined values
+    soma.PointCloud.create(
+        urljoin(baseuri, "x"),
+        schema=asch,
+        index_column_names="x",
+        axis_names="x",
+        domain=((1, 10),),
     )
 
-    # defaults
-    soma.GeometryDataFrame.create(urljoin(baseuri, "default"), schema=asch)
-
-    with soma.GeometryDataFrame.open(urljoin(baseuri, "default"), "r") as ptc:
-        assert set(ptc.schema.names) == set(ptc.index_column_names)
-        assert ptc.index_column_names == ("soma_joinid", "x", "y")
-        assert ptc.axis_names == ("x", "y")
-
-    # with passed-in index column names and axis names
-    with pytest.raises(ValueError):
-        # axis names must be in index column names
-        soma.GeometryDataFrame.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x")
-
-    soma.GeometryDataFrame.create(urljoin(baseuri, "x"), schema=asch, index_column_names="x", axis_names="x")
-
-    with soma.GeometryDataFrame.open(urljoin(baseuri, "x"), "r") as ptc:
+    with soma.PointCloud.open(urljoin(baseuri, "x"), "r") as ptc:
+        assert set(ptc.schema.names) == set(["soma_joinid", "x", "y"])
         assert ptc.index_column_names == ("x",)
         assert ptc.axis_names == ("x",)
+        assert ptc.domain == ((1, 10),)
+
+    # axis names must be in index column names
+    with pytest.raises(ValueError):
+        soma.PointCloud.create(
+            urljoin(baseuri, "x"), schema=asch, index_column_names="x"
+        )
+
+
+def test_geometry_dataframe(tmp_path):
+    baseuri = urljoin(f"{tmp_path.as_uri()}/", "test_geometry_dataframe")
+
+    # defaults
+    asch = pa.schema([("x", pa.int32()), ("y", pa.float64())])
+
+    soma.GeometryDataFrame.create(urljoin(baseuri, "default"), schema=asch)
+
+    with soma.GeometryDataFrame.open(urljoin(baseuri, "default"), "r") as gdf:
+        assert set(gdf.schema.names) == set(["soma_joinid", "soma_geometry", "x", "y"])
+        assert gdf.index_column_names == ("soma_joinid", "soma_geometry")
+        assert gdf.axis_names == ("x", "y")
+        assert gdf.domain == ((0, 2147483646), ("", ""))
+
+    # did not specify soma_geometry to be an index column
+    with pytest.raises(ValueError):
+        soma.GeometryDataFrame.create(
+            urljoin(baseuri, "bad_index_column"), index_column_names=["x"], schema=asch
+        )
+
+    # bad soma_geometry type
+    with pytest.raises(ValueError):
+        soma.GeometryDataFrame.create(
+            urljoin(baseuri, "bad_soma_geometry"),
+            index_column_names=["x"],
+            schema=asch.append(pa.field("soma_geometry", pa.int64())),
+        )
+
+    # bad soma_joinid type
+    with pytest.raises(ValueError):
+        soma.GeometryDataFrame.create(
+            urljoin(baseuri, "bad_soma_joinid"),
+            index_column_names=["x"],
+            schema=asch.append(pa.field("soma_joinid", pa.binary())),
+        )
