@@ -29,7 +29,7 @@ import somacore
 from somacore import options
 
 from . import pytiledbsoma as clib
-from ._constants import SOMA_JOINID
+from ._constants import SOMA_JOINID, SOMA_GEOMETRY
 from ._types import (
     NPFloating,
     NPInteger,
@@ -484,9 +484,9 @@ def canonicalize_schema(
     # verify that all index_column_names are present in the schema
     schema_names_set = set(schema.names)
     for index_column_name in index_column_names:
-        if index_column_name.startswith("soma_") and index_column_name != SOMA_JOINID:
+        if index_column_name.startswith("soma_") and not index_column_name in [SOMA_JOINID, SOMA_GEOMETRY]:
             raise ValueError(
-                f'index_column_name other than "soma_joinid" must not begin with "soma_"; got "{index_column_name}"'
+                f'index_column_name other than "soma_joinid" or "soma_geometry" must not begin with "soma_"; got "{index_column_name}"'
             )
         if index_column_name not in schema_names_set:
             schema_names_string = "{}".format(list(schema_names_set))

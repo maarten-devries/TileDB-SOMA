@@ -184,7 +184,7 @@ from ._general_utilities import (
 from ._indexer import IntIndexer, tiledbsoma_build_index
 from ._measurement import Measurement
 from ._sparse_nd_array import SparseNDArray, SparseNDArrayRead
-from ._spatial_dataframe import PointCloud
+from ._spatial_dataframe import PointCloud, GeometryDataFrame
 from ._scene import Scene
 from .options import SOMATileDBContext, TileDBCreateOptions, TileDBWriteOptions
 from .pytiledbsoma import (
@@ -212,6 +212,7 @@ __all__ = [
     "DoesNotExistError",
     "Experiment",
     "ExperimentAxisQuery",
+    "GeometryDataFrame",
     "get_implementation_version",
     "get_implementation",
     "get_SOMA_version",

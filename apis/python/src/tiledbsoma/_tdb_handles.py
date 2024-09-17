@@ -86,6 +86,7 @@ def open(
         "somameasurement": MeasurementWrapper,
         "somascene": SceneWrapper,
         "somapointcloud": PointCloudWrapper,
+        "somageometrydataframe": GeometryDataFrameWrapper,
     }
 
     try:
@@ -569,6 +570,11 @@ class PointCloudWrapper(SOMAArrayWrapper[clib.SOMAPointCloud]):
     """Wrapper around a Pybind11 PointCloudWrapper handle."""
 
     _ARRAY_WRAPPED_TYPE = clib.SOMAPointCloud
+
+class GeometryDataFrameWrapper(SOMAArrayWrapper[clib.SOMAGeometryDataFrame]):
+    """Wrapper around a Pybind11 GeometryDataFrameWrapper handle."""
+
+    _ARRAY_WRAPPED_TYPE = clib.SOMAGeometryDataFrame
 
 
 class _DictMod(enum.Enum):

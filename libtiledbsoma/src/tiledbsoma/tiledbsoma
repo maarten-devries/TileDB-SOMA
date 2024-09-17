@@ -53,7 +53,6 @@
 #include "soma/soma_group.h"
 #include "soma/soma_experiment.h"
 #include "soma/soma_measurement.h"
-#include "soma/soma_scene.h"
 #include "soma/soma_object.h"
 #include "soma/soma_dataframe.h"
 #include "soma/soma_dense_ndarray.h"
@@ -61,5 +60,6 @@
 #include "soma/soma_scene.h"
 #include "soma/soma_spatial_dataframe.h"
 #include "soma/soma_point_cloud.h"
+#include "soma/soma_geometry_dataframe.h"
 
 #endif
