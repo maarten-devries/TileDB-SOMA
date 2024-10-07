@@ -14,7 +14,7 @@ import somacore
 from somacore import Axis, CoordinateSpace, CoordinateTransform, options
 from typing_extensions import Self
 
-from . import _arrow_types, _util
+from . import _arrow_types, _factory, _util
 from . import pytiledbsoma as clib
 from ._constants import (
     SOMA_COORDINATE_SPACE_METADATA_KEY,
@@ -38,7 +38,6 @@ from ._spatial_util import (
     coordinate_space_to_json,
     process_spatial_df_region,
 )
-from ._tdb_handles import PointCloudDataFrameWrapper
 from ._types import OpenTimestamp
 from .options import SOMATileDBContext
 from .options._soma_tiledb_context import _validate_soma_tiledb_context
@@ -63,7 +62,7 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
     """
 
     __slots__ = ("_coord_space",)
-    _wrapper_type = PointCloudDataFrameWrapper
+    _handle: clib.PointCloudDataFrame
 
     @classmethod
     def create(
@@ -245,7 +244,9 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
         except SOMAError as e:
             raise map_exception_for_create(e, uri) from None
 
-        handle = cls._wrapper_type.open(uri, "w", context, tiledb_timestamp)
+        handle: clib.PointCloudDataFrame = _factory.open(
+            uri, "w", context=context, tiledb_timestamp=tiledb_timestamp
+        )
         handle.meta[SOMA_COORDINATE_SPACE_METADATA_KEY] = coordinate_space_to_json(
             coord_space
         )
@@ -256,7 +257,7 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
 
     def __init__(
         self,
-        handle: PointCloudDataFrameWrapper,
+        handle: clib.PointCloudDataFrame,
         **kwargs: Any,
     ):
         super().__init__(handle, **kwargs)
@@ -285,7 +286,7 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
         """Returns the number of rows in the dataframe."""
         self._check_open_read()
         # if is it in read open mode, then it is a PointCloudDataFrameWrapper
-        return cast(PointCloudDataFrameWrapper, self._handle).count
+        return cast(int, self._handle.count)
 
     def read(
         self,
@@ -323,7 +324,7 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
         _util.check_unpartitioned(partitions)
         self._check_open_read()
 
-        handle = self._handle._handle
+        handle = self._handle
 
         context = handle.context()
         if platform_config is not None:
@@ -481,7 +482,7 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
         write_options = TileDBWriteOptions.from_platform_config(platform_config)
         sort_coords = write_options.sort_coords
 
-        clib_dataframe = self._handle._handle
+        clib_dataframe = self._handle
 
         for batch in values.to_batches():
             clib_dataframe.write(batch, sort_coords or False)

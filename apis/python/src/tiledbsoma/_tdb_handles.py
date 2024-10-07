@@ -41,7 +41,6 @@ from .options._soma_tiledb_context import SOMATileDBContext
 RawHandle = Union[
     clib.SOMAArray,
     clib.SOMADataFrame,
-    clib.SOMAPointCloudDataFrame,
     clib.SOMASparseNDArray,
     clib.SOMADenseNDArray,
     clib.SOMAGroup,
@@ -80,7 +79,6 @@ def open(
 
     _type_to_class = {
         "somadataframe": DataFrameWrapper,
-        "somapointclouddataframe": PointCloudDataFrameWrapper,
         "somadensendarray": DenseNDArrayWrapper,
         "somasparsendarray": SparseNDArrayWrapper,
         "somacollection": CollectionWrapper,
@@ -524,19 +522,6 @@ class DataFrameWrapper(SOMAArrayWrapper[clib.SOMADataFrame]):
         1.15).
         """
         self._handle.resize_soma_joinid_shape(newshape)
-
-
-class PointCloudDataFrameWrapper(SOMAArrayWrapper[clib.SOMAPointCloudDataFrame]):
-    """Wrapper around a Pybind11 SOMAPointCloudDataFrame handle."""
-
-    _ARRAY_WRAPPED_TYPE = clib.SOMAPointCloudDataFrame
-
-    @property
-    def count(self) -> int:
-        return int(self._handle.count)
-
-    def write(self, values: pa.RecordBatch) -> None:
-        self._handle.write(values)
 
 
 class DenseNDArrayWrapper(SOMAArrayWrapper[clib.SOMADenseNDArray]):
