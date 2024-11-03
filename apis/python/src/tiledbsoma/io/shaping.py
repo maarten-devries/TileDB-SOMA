@@ -247,7 +247,7 @@ def resize_experiment(
     with tiledbsoma.Experiment.open(uri) as exp:
         for ms_key in exp.ms.keys():
             if ms_key not in nvars.keys():
-                nvars[ms_key] = exp.ms[ms_key].var._maybe_soma_joinid_shape or 1
+                nvars[ms_key] = exp.ms[ms_key].var.shape or 1
 
     ok = _treewalk(
         uri,
@@ -326,13 +326,14 @@ def _leaf_visitor_show_shapes(
     if isinstance(item, tiledbsoma.DataFrame):
         _print_leaf_node_banner("DataFrame", node_name, item.uri, args)
         _bannerize(args, "count", item.count)
+        _bannerize(args, "shape", item.shape)
+        _bannerize(args, "maxshape", item.maxshape)
         _bannerize(args, "domain", item.domain)
         _bannerize(args, "maxdomain", item.maxdomain)
         _bannerize(args, "upgraded", item.tiledbsoma_has_upgraded_domain)
 
     elif isinstance(item, tiledbsoma.SparseNDArray):
         _print_leaf_node_banner("SparseNDArray", node_name, item.uri, args)
-        ####_bannerize(args, "used_shape", item.used_shape())
         _bannerize(args, "used_shape", _find_old_sparse_ndarray_bounds(item))
         _bannerize(args, "shape", item.shape)
         _bannerize(args, "maxshape", item.maxshape)
@@ -382,7 +383,6 @@ def _leaf_visitor_upgrade(
                 print("  Already upgraded", file=args["output_handle"])
 
     elif isinstance(item, tiledbsoma.SparseNDArray):
-        #### used_shape = item.used_shape()
         used_shape = _find_old_sparse_ndarray_bounds(item)
         new_shape = tuple(e[1] + 1 for e in used_shape)
 
