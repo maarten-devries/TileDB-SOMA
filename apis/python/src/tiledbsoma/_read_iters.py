@@ -67,7 +67,9 @@ class TableReadIter(somacore.ReadIter[pa.Table]):
     def __init__(
         self,
         array: SOMAArray,
-        coords: Union[options.SparseDFCoords, options.DenseNDCoords],
+        coords: Union[
+            options.SparseDFCoords, options.SparseNDCoords, options.DenseNDCoords
+        ],
         column_names: Optional[Sequence[str]],
         result_order: clib.ResultOrder,
         value_filter: Optional[str],
@@ -79,7 +81,9 @@ class TableReadIter(somacore.ReadIter[pa.Table]):
             array (SOMAArray):
                 The NDArray, DataFrame, or SpatialDataFrame being read.
 
-            coords (Union[options.SparseDFCoords, options.DenseNDCoords]):
+            coords (Union[
+                options.SparseDFCoords, options.SparseNDCoords, options.DenseNDCoords
+            ]):
                 for each index dimension, which rows to read.
                 ``()`` means no constraint -- all IDs.
 
@@ -536,7 +540,9 @@ class SparseCOOTensorReadIter(SparseTensorReadIterBase[pa.SparseCOOTensor]):
 
 def _arrow_table_reader(
     array: SOMAArray,
-    coords: Union[options.SparseDFCoords, options.DenseNDCoords],
+    coords: Union[
+        options.SparseDFCoords, options.SparseNDCoords, options.DenseNDCoords
+    ],
     column_names: Optional[Sequence[str]],
     result_order: clib.ResultOrder,
     value_filter: Optional[str],
