@@ -50,6 +50,7 @@ from .options._tiledb_create_write_options import (
 _UNBATCHED = options.BatchSize()
 AxisDomain = Union[None, Tuple[Any, Any], List[Any]]
 Domain = Sequence[AxisDomain]
+DictDomain = Dict[str, AxisDomain]
 
 
 class DataFrame(SOMAArray, somacore.DataFrame):
@@ -152,7 +153,7 @@ class DataFrame(SOMAArray, somacore.DataFrame):
         *,
         schema: pa.Schema,
         index_column_names: Sequence[str] = (SOMA_JOINID,),
-        domain: Optional[Domain] = None,
+        domain: Optional[Union[Domain, DictDomain]] = None,
         platform_config: Optional[options.PlatformConfig] = None,
         context: Optional[SOMATileDBContext] = None,
         tiledb_timestamp: Optional[OpenTimestamp] = None,
@@ -249,36 +250,76 @@ class DataFrame(SOMAArray, somacore.DataFrame):
         # thing they see and care about. Before 2.25 support, it was immutable
         # (since it was implemented by core domain). After 2.25 support, it is
         # mutable/up-resizeable (since it is implemented by core current domain).
-
+        #
         # At this point shift from API terminology "domain" to specifying a soma_ or core_
         # prefix for these variables. This is crucial to avoid developer confusion.
-        soma_domain = domain
-        domain = None
+        #
+        # The passed-in domain can be:
+        # * None
+        # * A tuple, which should be of the same length as index_column_names
+        # * A dict, each of trhe keys of which should be contained within index_column_names
+        # In any case we convert to the third of these.
 
-        if soma_domain is None:
-            soma_domain = tuple(None for _ in index_column_names)
+        soma_domain_as_dict: Dict[str, AxisDomain]
+        # Over time we've accreted some complexity in the API. We need to respect this.
+        # * If domain is None overall, that means each domain slot should be as small as possible.
+        # * If domain is None slotwise, that means that domain slot should be as small as possible.
+        # * if the domain is a dict, and if a key is present in index_column_names but not
+        #   in domain, then that domain slot should be as large as possible.
+        slots_to_ensmallen: Dict[str, bool] = {}
+        slots_to_embiggen: Dict[str, bool] = {}
+
+        if domain is None:
+            soma_domain_as_dict = {name: None for name in index_column_names}
+            slots_to_ensmallen = {name: True for name in index_column_names}
+
+        elif isinstance(domain, dict):
+            if not set(domain.keys()).issubset(set(index_column_names)):
+                raise ValueError(
+                    "if domain is specified as a dict, all of its keys must be present in index_column_names; "
+                    "got {list(domain.keys())} and {index_column_names}"
+                )
+            soma_domain_as_dict = {}
+            for index_column_name in index_column_names:
+                if index_column_name in domain:
+                    soma_domain_as_dict[index_column_name] = domain[index_column_name]
+                else:
+                    soma_domain_as_dict[index_column_name] = None
+                    slots_to_embiggen[index_column_name] = True
         else:
-            ndom = len(soma_domain)
             nidx = len(index_column_names)
-            if ndom != nidx:
+            ndom = len(domain)
+            if nidx != ndom:
                 raise ValueError(
                     f"if domain is specified, it must have the same length as index_column_names; got {ndom} != {nidx}"
                 )
 
+            soma_domain_as_dict = {}
+            for i in range(nidx):
+                index_column_name = index_column_names[i]
+                slot_domain = domain[i]
+                soma_domain_as_dict[index_column_name] = slot_domain
+                if slot_domain is None:
+                    slots_to_ensmallen[index_column_name] = True
+
+        # Unset this potentially confusing name, as a defense against future
+        # code maintenance
+        domain = None
+
         index_column_schema = []
         index_column_data = {}
 
-        for index_column_name, slot_soma_domain in zip(index_column_names, soma_domain):
+        for index_column_name, slot_soma_domain in soma_domain_as_dict.items():
             pa_field = schema.field(index_column_name)
             dtype = _arrow_types.tiledb_type_from_arrow_type(
                 pa_field.type, is_indexed_column=True
             )
 
             (slot_core_current_domain, saturated_cd) = _fill_out_slot_soma_domain(
-                slot_soma_domain, False, index_column_name, pa_field.type, dtype
+                slot_soma_domain, index_column_name, pa_field.type, dtype, embiggen=slots_to_embiggen[index_column_name],
             )
             (slot_core_max_domain, saturated_md) = _fill_out_slot_soma_domain(
-                None, True, index_column_name, pa_field.type, dtype
+                None, index_column_name, pa_field.type, dtype, embiggen=True,
             )
 
             extent = _find_extent_for_domain(
@@ -874,10 +915,12 @@ def _canonicalize_schema(
 
 def _fill_out_slot_soma_domain(
     slot_domain: AxisDomain,
-    is_max_domain: bool,
     index_column_name: str,
     pa_type: pa.DataType,
     dtype: Any,
+    *,
+    ensmallen: bool,
+    embiggen: bool,
 ) -> Tuple[Tuple[Any, Any], bool]:
     """Helper function for _build_tiledb_schema. Given a user-specified domain for a
     dimension slot -- which may be ``None``, or a two-tuple of which either element
@@ -926,7 +969,7 @@ def _fill_out_slot_soma_domain(
         # will (and must) ignore these when creating the TileDB schema.
         slot_domain = "", ""
     elif np.issubdtype(dtype, NPInteger):
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             # Core max domain is immutable. If unspecified, it should be as big
             # as possible since it can never be resized.
             iinfo = np.iinfo(cast(NPInteger, dtype))
@@ -946,7 +989,7 @@ def _fill_out_slot_soma_domain(
             # not 0.
             slot_domain = 0, 0
     elif np.issubdtype(dtype, NPFloating):
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             finfo = np.finfo(cast(NPFloating, dtype))
             slot_domain = finfo.min, finfo.max
             saturated_range = True
@@ -967,7 +1010,7 @@ def _fill_out_slot_soma_domain(
     #   value representable by domain type. Reduce domain max by 1 tile extent
     #   to allow for expansion.
     elif dtype == "datetime64[s]":
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             iinfo = np.iinfo(cast(NPInteger, np.int64))
             slot_domain = np.datetime64(iinfo.min + 1, "s"), np.datetime64(
                 iinfo.max - 1000000, "s"
@@ -975,7 +1018,7 @@ def _fill_out_slot_soma_domain(
         else:
             slot_domain = np.datetime64(0, "s"), np.datetime64(0, "s")
     elif dtype == "datetime64[ms]":
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             iinfo = np.iinfo(cast(NPInteger, np.int64))
             slot_domain = np.datetime64(iinfo.min + 1, "ms"), np.datetime64(
                 iinfo.max - 1000000, "ms"
@@ -983,7 +1026,7 @@ def _fill_out_slot_soma_domain(
         else:
             slot_domain = np.datetime64(0, "ms"), np.datetime64(0, "ms")
     elif dtype == "datetime64[us]":
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             iinfo = np.iinfo(cast(NPInteger, np.int64))
             slot_domain = np.datetime64(iinfo.min + 1, "us"), np.datetime64(
                 iinfo.max - 1000000, "us"
@@ -991,7 +1034,7 @@ def _fill_out_slot_soma_domain(
         else:
             slot_domain = np.datetime64(0, "us"), np.datetime64(0, "us")
     elif dtype == "datetime64[ns]":
-        if is_max_domain or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
+        if embiggen or not NEW_SHAPE_FEATURE_FLAG_ENABLED:
             iinfo = np.iinfo(cast(NPInteger, np.int64))
             slot_domain = np.datetime64(iinfo.min + 1, "ns"), np.datetime64(
                 iinfo.max - 1000000, "ns"
