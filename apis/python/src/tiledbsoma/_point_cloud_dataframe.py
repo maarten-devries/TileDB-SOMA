@@ -458,15 +458,18 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
         write_options = TileDBWriteOptions.from_platform_config(platform_config)
         sort_coords = write_options.sort_coords
 
-        clib_dataframe = self._handle._handle
+        sdf = self._handle._handle
 
         for batch in values.to_batches():
-            clib_dataframe.write(batch, sort_coords or False)
+            mq = clib.ManagedQuery(sdf, sdf.context())
+            mq.set_array_data(batch)
+            mq.submit_write(sort_coords or False)
 
         if write_options.consolidate_and_vacuum:
-            clib_dataframe.consolidate_and_vacuum()
+            sdf.consolidate_and_vacuum()
 
         return self
+
 
     # Metadata operations
 

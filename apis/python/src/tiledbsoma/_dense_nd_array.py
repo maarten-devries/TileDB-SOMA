@@ -326,7 +326,7 @@ class DenseNDArray(NDArray, somacore.DenseNDArray):
         mq = clib.ManagedQuery(clib_handle, clib_handle.context())
         mq.set_layout(order)
         _util._set_coords(mq, clib_handle, new_coords)
-        mq.set_soma_data(input)
+        mq.set_column("soma_data", input)
         mq.submit_write()
 
         tiledb_write_options = TileDBWriteOptions.from_platform_config(platform_config)

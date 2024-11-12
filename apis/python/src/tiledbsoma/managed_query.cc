@@ -160,13 +160,13 @@ void load_managed_query(py::module& m) {
                 arrow_array.release(&arrow_array);
             })
         .def(
-            "set_soma_data",
-            [](ManagedQuery& mq, py::array data) {
+            "set_column",
+            [](ManagedQuery& mq, std::string name, py::array data) {
                 py::buffer_info data_info = data.request();
 
                 py::gil_scoped_release release;
                 mq.setup_write_column(
-                    "soma_data",
+                    name,
                     data.size(),
                     (const void*)data_info.ptr,
                     static_cast<uint64_t*>(nullptr),
@@ -175,7 +175,13 @@ void load_managed_query(py::module& m) {
             })
         .def(
             "submit_write",
-            &ManagedQuery::submit_write,
+            [](ManagedQuery& mq, bool sort_coords) {
+                try {
+                    mq.submit_write(sort_coords);
+                } catch (const std::exception& e) {
+                    TPY_ERROR_LOC(e.what());
+                }
+            },
             "sort_coords"_a = false,
             py::call_guard<py::gil_scoped_release>())
 

@@ -350,12 +350,12 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
         write_options = TileDBWriteOptions.from_platform_config(platform_config)
         sort_coords = write_options.sort_coords
 
-        clib_sparse_array = self._handle._handle
+        clib_handle = self._handle._handle
 
         if isinstance(values, pa.SparseCOOTensor):
             # Write bulk data
             data, coords = values.to_numpy()
-            clib_sparse_array.write_coords(
+            clib_handle.write_coords(
                 [
                     np.array(
                         c,
@@ -369,6 +369,19 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
                 sort_coords or True,
             )
 
+            mq = clib.ManagedQuery(clib_handle, clib_handle.context())
+
+            for i, c in enumerate(coords.T):
+                name = f"soma_dim_{i}"
+                dtype = self.schema.field(name).type.to_pandas_dtype()
+                mq.set_column(name, np.array(c, dtype=dtype))
+
+            name = "soma_data"
+            dtype = self.schema.field(name).type.to_pandas_dtype()
+            mq.set_column(name, np.array(data, dtype=dtype))
+
+            mq.submit_write(sort_coords or True)
+
             # Write bounding-box metadata. Note COO can be N-dimensional.
             maxes = [e - 1 for e in values.shape]
             bounding_box = self._compute_bounding_box_metadata(maxes)
@@ -376,7 +389,7 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
 
             if write_options.consolidate_and_vacuum:
                 # Consolidate non-bulk data
-                clib_sparse_array.consolidate_and_vacuum()
+                clib_handle.consolidate_and_vacuum()
             return self
 
         if isinstance(values, (pa.SparseCSCMatrix, pa.SparseCSRMatrix)):
@@ -387,19 +400,19 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
             # Write bulk data
             # TODO: the ``to_scipy`` function is not zero copy. Need to explore zero-copy options.
             sp = values.to_scipy().tocoo()
-            clib_sparse_array.write_coords(
-                [
-                    np.array(
-                        c,
-                        dtype=self.schema.field(f"soma_dim_{i}").type.to_pandas_dtype(),
-                    )
-                    for i, c in enumerate([sp.row, sp.col])
-                ],
-                np.array(
-                    sp.data, dtype=self.schema.field("soma_data").type.to_pandas_dtype()
-                ),
-                sort_coords or True,
-            )
+
+            mq = clib.ManagedQuery(clib_handle, clib_handle.context())
+
+            for i, c in enumerate([sp.row, sp.col]):
+                name = f"soma_dim_{i}"
+                dtype = self.schema.field(name).type.to_pandas_dtype()
+                mq.set_column(name, np.array(c, dtype=dtype))
+
+            name = "soma_data"
+            dtype = self.schema.field(name).type.to_pandas_dtype()
+            mq.set_column(name, np.array(sp.data, dtype=dtype))
+
+            mq.submit_write(sort_coords or True)
 
             # Write bounding-box metadata. Note CSR and CSC are necessarily 2-dimensional.
             nr, nc = values.shape
@@ -408,14 +421,16 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
 
             if write_options.consolidate_and_vacuum:
                 # Consolidate non-bulk data
-                clib_sparse_array.consolidate_and_vacuum()
+                clib_handle.consolidate_and_vacuum()
             return self
 
         if isinstance(values, pa.Table):
             # Write bulk data
             values = _util.cast_values_to_target_schema(values, self.schema)
             for batch in values.to_batches():
-                clib_sparse_array.write(batch, sort_coords or False)
+                mq = clib.ManagedQuery(clib_handle, clib_handle.context())
+                mq.set_array_data(batch)
+                mq.submit_write(sort_coords or False)
 
             # Write bounding-box metadata
             maxes = []
@@ -431,7 +446,7 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
 
             if write_options.consolidate_and_vacuum:
                 # Consolidate non-bulk data
-                clib_sparse_array.consolidate_and_vacuum()
+                clib_handle.consolidate_and_vacuum()
             return self
 
         raise TypeError(
