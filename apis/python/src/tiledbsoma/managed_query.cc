@@ -57,13 +57,14 @@ void load_managed_query(py::module& m) {
                     ctx->tiledb_ctx(),
                     name);
             }),
+            py::keep_alive<1, 2>(),
             py::arg("array"),
             py::arg("ctx"),
             py::arg("name") = "unnamed")
 
         .def("setup_read", &ManagedQuery::setup_read)
         .def("is_empty_query", &ManagedQuery::is_empty_query)
-        .def("is_complete", &ManagedQuery::is_complete)
+        .def("is_complete", &ManagedQuery::is_complete, py::arg("query_status_only") = false)
 
         .def("set_layout", &ManagedQuery::set_layout)
         .def(

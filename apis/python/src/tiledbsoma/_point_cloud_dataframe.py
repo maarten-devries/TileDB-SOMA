@@ -470,7 +470,6 @@ class PointCloudDataFrame(SpatialDataFrame, somacore.PointCloudDataFrame):
 
         return self
 
-
     # Metadata operations
 
     @property
