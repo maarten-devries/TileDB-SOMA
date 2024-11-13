@@ -20,8 +20,11 @@ if VERBOSE:
 
 def pandas_query(uri, condition):
     sr = clib.SOMAArray(uri)
-    arrow_table = sr.read_next()
-    assert sr.results_complete()
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
+    assert mq.is_complete()
 
     return arrow_table.to_pandas().query(condition)
 
@@ -29,9 +32,12 @@ def pandas_query(uri, condition):
 def soma_query(uri, condition):
     qc = QueryCondition(condition)
     sr = clib.SOMAArray(uri)
-    sr.set_condition(qc, sr.schema)
-    arrow_table = sr.read_next()
-    assert sr.results_complete()
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.set_condition(qc, sr.schema)
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
+    assert mq.is_complete()
 
     return arrow_table
 
@@ -106,12 +112,17 @@ def test_query_condition_select_columns():
     uri = os.path.join(SOMA_URI, "obs")
     condition = "percent_mito > 0.02"
 
-    sr = clib.SOMAArray(uri, column_names=["n_genes"])
     qc = QueryCondition(condition)
-    sr.set_condition(qc, sr.schema)
-    arrow_table = sr.read_next()
 
-    assert sr.results_complete()
+    sr = clib.SOMAArray(uri, column_names=["n_genes"])
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.set_condition(qc, sr.schema)
+    mq.select_columns(["percent_mito", "n_genes"])
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
+
+    assert mq.is_complete()
     assert arrow_table.num_rows == 1332
     assert arrow_table.num_columns == 2
 
@@ -123,10 +134,13 @@ def test_query_condition_all_columns():
     qc = QueryCondition(condition)
 
     sr = clib.SOMAArray(uri)
-    sr.set_condition(qc, sr.schema)
-    arrow_table = sr.read_next()
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.set_condition(qc, sr.schema)
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
 
-    assert sr.results_complete()
+    assert mq.is_complete()
     assert arrow_table.num_rows == 1332
     assert arrow_table.num_columns == 7
 
@@ -138,10 +152,13 @@ def test_query_condition_reset():
     qc = QueryCondition(condition)
 
     sr = clib.SOMAArray(uri)
-    sr.set_condition(qc, sr.schema)
-    arrow_table = sr.read_next()
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.set_condition(qc, sr.schema)
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
 
-    assert sr.results_complete()
+    assert mq.is_complete()
     assert arrow_table.num_rows == 1332
     assert arrow_table.num_columns == 7
 
@@ -149,12 +166,14 @@ def test_query_condition_reset():
     # ---------------------------------------------------------------
     condition = "percent_mito < 0.02"
     qc = QueryCondition(condition)
-    sr.reset(column_names=["percent_mito"])
-    sr.set_condition(qc, sr.schema)
+    mq = clib.ManagedQuery(sr, sr.context())
+    mq.set_condition(qc, sr.schema)
+    mq.select_columns(["percent_mito"])
+    mq.setup_read()
+    mq.submit_read()
+    arrow_table = mq.results()
 
-    arrow_table = sr.read_next()
-
-    assert sr.results_complete()
+    assert mq.is_complete()
     assert arrow_table.num_rows == 1306
     assert arrow_table.num_columns == 1
 

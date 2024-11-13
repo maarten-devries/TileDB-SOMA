@@ -355,19 +355,6 @@ class SparseNDArray(NDArray, somacore.SparseNDArray):
         if isinstance(values, pa.SparseCOOTensor):
             # Write bulk data
             data, coords = values.to_numpy()
-            clib_handle.write_coords(
-                [
-                    np.array(
-                        c,
-                        dtype=self.schema.field(f"soma_dim_{i}").type.to_pandas_dtype(),
-                    )
-                    for i, c in enumerate(coords.T)
-                ],
-                np.array(
-                    data, dtype=self.schema.field("soma_data").type.to_pandas_dtype()
-                ),
-                sort_coords or True,
-            )
 
             mq = clib.ManagedQuery(clib_handle, clib_handle.context())
 
