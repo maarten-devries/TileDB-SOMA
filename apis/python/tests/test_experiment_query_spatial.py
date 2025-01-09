@@ -277,9 +277,11 @@ def test_spatial_experiment_query_none(soma_spatial_experiment):
         assert ad.n_obs == 0 and ad.n_vars == 0
 
         # Check no region columns/metadata.
-        assert "region_key" not in ad.obs
-        assert "instance_key" not in ad.obs
-        assert "spatialdata_attrs" not in ad.uns
+        assert "region_key" in ad.obs
+        assert "instance_key" in ad.obs
+        sd_attrs = ad.uns["spatialdata_attrs"]
+        assert sd_attrs["region_key"] == "region_key"
+        assert sd_attrs["instance_key"] == "instance_key"
 
 
 def test_spatial_experiment_query_all(soma_spatial_experiment):
