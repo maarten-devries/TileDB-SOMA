@@ -1812,63 +1812,6 @@ def update_matrix(
     )
 
 
-def add_obs_layer(
-    exp: Experiment,
-    obs_data: pd.DataFrame,
-    *,
-    obs_id_name: str = "obs_id",
-    ingest_mode: IngestMode = "write",
-    context: SOMATileDBContext | None = None,
-    platform_config: PlatformConfig | None = None,
-) -> None:
-    """Add observation (cell) metadata to an existing TileDB-SOMA Experiment.
-    
-    This is useful for adding new cell-level metadata, for example from clustering results
-    or other analyses.
-
-    Args:
-        exp: The TileDB-SOMA Experiment to add obs data to
-        obs_data: Cell metadata as a pandas DataFrame
-        obs_id_name: Name of the observation ID column
-        ingest_mode: One of "write" (default) or "resume"
-        context: Optional SOMATileDBContext containing storage parameters
-        platform_config: Platform-specific options for creating/writing arrays
-            
-    Raises:
-        SOMAError: If the experiment is not open for writing
-        TypeError: If obs_data is not a pandas DataFrame
-        
-    Lifecycle:
-        Maturing.
-    """
-    exp.verify_open_for_writing()
-    
-    # Validate inputs
-    if not isinstance(obs_data, pd.DataFrame):
-        raise TypeError(f"obs_data must be a pandas DataFrame, got {type(obs_data)}")
-
-    # Map the user-level ingest mode to implementation-level flags
-    ingestion_params = IngestionParams(ingest_mode, None)
-    
-    ingest_platform_ctx = dict(
-        context=context,
-        ingestion_params=ingestion_params,
-        additional_metadata=None,
-        platform_config=platform_config,
-    )
-
-    # Write the dataframe using the same pattern as from_anndata
-    df_uri = exp.obs.uri
-    with _write_dataframe(
-        df_uri,
-        conversions.obs_or_var_to_tiledb_supported_array_type(obs_data),
-        id_column_name=obs_id_name,
-        axis_mapping=AxisIDMapping.identity(obs_data.shape[0]),
-        **ingest_platform_ctx,
-    ) as obs:
-        _maybe_set(exp, "obs", obs)
-
-
 def add_X_layer(
     exp: Experiment,
     measurement_name: str,
@@ -3032,3 +2975,67 @@ def _ingest_uns_ndarray(
 
     msg = f"Wrote   {soma_arr.uri} (uns ndarray)"
     logging.log_io(msg, msg)
+
+
+def add_obs(
+    exp: Experiment,
+    new_obs: pd.DataFrame,
+    *,
+    obs_id_name: str = "obs_id",
+    context: SOMATileDBContext | None = None,
+    platform_config: PlatformConfig | None = None,
+) -> str:
+    """
+    Creates and writes a new ``obs`` DataFrame to an existing experiment. This is useful when
+    recreating the obs DataFrame after deletion.
+
+    Args:
+        exp: The :class:`SOMAExperiment` to add obs to. Must be opened for write.
+        
+        new_obs: The pandas DataFrame containing the new obs data.
+        
+        obs_id_name: Name of the column/index in new_obs containing unique observation IDs.
+            Defaults to "obs_id".
+            
+        context: Optional :class:`SOMATileDBContext` containing storage parameters, etc.
+        
+        platform_config: Platform-specific options used to create this array, provided in the form
+            ``{"tiledb": {"create": {"dataframe_dim_zstd_level": 7}}}``
+
+    Returns:
+        The URI of the created obs DataFrame.
+
+    Example::
+
+        with tiledbsoma.Experiment.open(exp_uri, "w") as exp:
+            tiledbsoma.io.add_obs(
+                exp,
+                new_obs_df,
+                obs_id_name="cell_id"
+            )
+
+    Lifecycle:
+        Experimental.
+    """
+    exp.verify_open_for_writing()
+
+    # Create identity mapping since we're creating a new obs
+    axis_mapping = AxisIDMapping.identity(new_obs.shape[0])
+    
+    # Set up ingestion parameters for creating new array
+    ingestion_params = IngestionParams("write", None)
+
+    obs_uri = _util.uri_joinpath(exp.uri, "obs")
+    
+    with _write_dataframe(
+        obs_uri,
+        new_obs.copy(),  # Copy since _write_dataframe modifies the DataFrame
+        obs_id_name,
+        platform_config=platform_config,
+        context=context,
+        ingestion_params=ingestion_params,
+        axis_mapping=axis_mapping,
+    ) as obs:
+        _maybe_set(exp, "obs", obs, use_relative_uri=None)
+        
+    return obs_uri
