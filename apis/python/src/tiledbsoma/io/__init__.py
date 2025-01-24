@@ -8,7 +8,7 @@ from ._registration import (
 from .ingest import (
     add_matrix_to_collection,
     add_X_layer,
-    add_obs_layer,
+    add_obs,
     append_obs,
     append_var,
     append_X,
@@ -34,7 +34,7 @@ from .shaping import (
 __all__ = (
     "add_matrix_to_collection",
     "add_X_layer",
-    "add_obs_layer",
+    "add_obs",
     "append_obs",
     "append_var",
     "append_X",
