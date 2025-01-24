@@ -2984,6 +2984,7 @@ def add_obs(
     obs_id_name: str = "obs_id",
     context: SOMATileDBContext | None = None,
     platform_config: PlatformConfig | None = None,
+    use_relative_uri: bool | None = None,
 ) -> str:
     """
     Creates and writes a new ``obs`` DataFrame to an existing experiment. This is useful when
@@ -3001,6 +3002,9 @@ def add_obs(
         
         platform_config: Platform-specific options used to create this array, provided in the form
             ``{"tiledb": {"create": {"dataframe_dim_zstd_level": 7}}}``
+            
+        use_relative_uri: Whether to use relative URIs when setting group members.
+            If None, will be automatically determined based on the storage type.
 
     Returns:
         The URI of the created obs DataFrame.
@@ -3023,10 +3027,16 @@ def add_obs(
     axis_mapping = AxisIDMapping.identity(new_obs.shape[0])
     
     # Set up ingestion parameters for creating new array
-    ingestion_params = IngestionParams("write", None)
+    # Use "update" mode to force overwrite of existing array if it exists
+    ingestion_params = IngestionParams("update", None)
 
     obs_uri = _util.uri_joinpath(exp.uri, "obs")
     
+    # First remove the obs member from the experiment if it exists
+    if "obs" in exp:
+        exp.remove("obs")
+    
+    # Create and write the new obs DataFrame
     with _write_dataframe(
         obs_uri,
         new_obs.copy(),  # Copy since _write_dataframe modifies the DataFrame
@@ -3036,6 +3046,7 @@ def add_obs(
         ingestion_params=ingestion_params,
         axis_mapping=axis_mapping,
     ) as obs:
-        _maybe_set(exp, "obs", obs, use_relative_uri=None)
+        # Add the obs DataFrame to the experiment group
+        exp.set("obs", obs, use_relative_uri=use_relative_uri)
         
     return obs_uri
