@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import scipy.sparse as sp
+import tiledb
 
 # As of anndata 0.11 we get a warning importing anndata.experimental.
 # But anndata.abc doesn't exist in anndata 0.10. And anndata 0.11 doesn't
@@ -3034,7 +3035,23 @@ def add_obs(
     
     # First remove the obs member from the experiment if it exists
     if "obs" in exp:
+        # Get the obs array before removing it from the group
+        old_obs = exp.obs
+        # Remove from the experiment group
         exp.remove("obs")
+        # Ensure the array is unregistered from TileDB
+        try:
+            if context and context.native_context:
+                context.native_context.array_unregister(obs_uri)
+        except:
+            # Array might not be registered
+            pass
+        # Delete the array itself if it exists
+        try:
+            tiledb.Array.delete_array(obs_uri)  # delete .obs array
+        except (SOMAError, RuntimeError):
+            # Array might already be deleted or inaccessible
+            pass
     
     # Create and write the new obs DataFrame
     with _write_dataframe(
