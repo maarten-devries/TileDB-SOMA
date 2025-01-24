@@ -724,6 +724,9 @@ std::any SOMADimension::_non_empty_domain_slot_opt(
         case TILEDB_DATETIME_FS:
         case TILEDB_DATETIME_AS:
         case TILEDB_INT64:
+            std::cout
+                << typeid(std::optional<std::pair<int64_t, int64_t>>).name()
+                << std::endl;
             if (is_empty) {
                 return std::make_any<
                     std::optional<std::pair<int64_t, int64_t>>>(std::nullopt);

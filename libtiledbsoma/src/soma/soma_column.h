@@ -426,15 +426,19 @@ class SOMAColumn {
     std::optional<std::pair<T, T>> non_empty_domain_slot_opt(
         const SOMAContext& ctx, Array& array) const {
         try {
-            return std::any_cast<std::optional<std::pair<T, T>>>(
-                _non_empty_domain_slot_opt(ctx, array));
+            auto result = _non_empty_domain_slot_opt(ctx, array);
+
+            std::cout << "Returned " << result.type().name() << std::endl;
+            std::cout << "Required "
+                      << typeid(std::optional<std::pair<T, T>>).name()
+                      << std::endl;
+            return std::any_cast<std::optional<std::pair<T, T>>>(result);
         } catch (const std::exception& e) {
             throw TileDBSOMAError(std::format(
                 "[SOMAColumn][non_empty_domain_slot] Failed on \"{}\" with "
-                "error \"{}\", type '{}'",
+                "error \"{}\"",
                 name(),
-                e.what(),
-                typeid(T).name()));
+                e.what()));
         }
     }
 
