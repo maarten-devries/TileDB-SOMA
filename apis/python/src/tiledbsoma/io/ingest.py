@@ -1814,49 +1814,59 @@ def update_matrix(
 
 def add_obs_layer(
     exp: Experiment,
-    obs_data: Union[pd.DataFrame, pa.Table],
+    obs_data: pd.DataFrame,
+    *,
+    obs_id_name: str = "obs_id",
     ingest_mode: IngestMode = "write",
+    context: SOMATileDBContext | None = None,
+    platform_config: PlatformConfig | None = None,
 ) -> None:
     """Add observation (cell) metadata to an existing TileDB-SOMA Experiment.
     
     This is useful for adding new cell-level metadata, for example from clustering results
     or other analyses.
 
-    Use ``ingest_mode="resume"`` to not error out if the schema already exists.
-
     Args:
         exp: The TileDB-SOMA Experiment to add obs data to
-        obs_data: Cell metadata as a pandas DataFrame or Arrow Table
+        obs_data: Cell metadata as a pandas DataFrame
+        obs_id_name: Name of the observation ID column
         ingest_mode: One of "write" (default) or "resume"
-        use_relative_uri: Whether to use relative URIs for internal references
+        context: Optional SOMATileDBContext containing storage parameters
+        platform_config: Platform-specific options for creating/writing arrays
             
     Raises:
         SOMAError: If the experiment is not open for writing
+        TypeError: If obs_data is not a pandas DataFrame
         
     Lifecycle:
         Maturing.
     """
     exp.verify_open_for_writing()
     
-    # Convert pandas DataFrame to Arrow Table if needed
-    if isinstance(obs_data, pd.DataFrame):
-        obs_data = pa.Table.from_pandas(obs_data)
+    # Validate inputs
+    if not isinstance(obs_data, pd.DataFrame):
+        raise TypeError(f"obs_data must be a pandas DataFrame, got {type(obs_data)}")
+
+    # Map the user-level ingest mode to implementation-level flags
+    ingestion_params = IngestionParams(ingest_mode, None)
     
-    # Validate the input data
-    if not isinstance(obs_data, pa.Table):
-        raise TypeError(
-            f"obs_data must be a pandas DataFrame or Arrow Table, got {type(obs_data)}"
-        )
-    
-    # Add the data to the obs collection
-    if exp.obs is None:
-        raise SOMAError(f"Experiment {exp.uri} has no obs collection")
-        
-    # Write the data
-    exp.obs.write(
-        value=obs_data,
-        ingest_mode=ingest_mode
+    ingest_platform_ctx = dict(
+        context=context,
+        ingestion_params=ingestion_params,
+        additional_metadata=None,
+        platform_config=platform_config,
     )
+
+    # Write the dataframe using the same pattern as from_anndata
+    df_uri = exp.obs.uri
+    with _write_dataframe(
+        df_uri,
+        conversions.obs_or_var_to_tiledb_supported_array_type(obs_data),
+        id_column_name=obs_id_name,
+        axis_mapping=AxisIDMapping.identity(obs_data.shape[0]),
+        **ingest_platform_ctx,
+    ) as obs:
+        _maybe_set(exp, "obs", obs)
 
 
 def add_X_layer(
